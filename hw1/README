@@ -1,0 +1,21 @@
+CS646 Hw1:
+1. Setup:
+  - build floodlight.
+    First time after a fresh clone or checkout:
+      git clone https://github.com/floodlight/floodlight 
+      cd floodlight
+      git submodule init                # pull down web-ui files
+      git submodule update 
+      ant                                       # compile **after** fetching web-ui files
+      java -jar target/floodlight.jar # start controller
+  - cd hw1  # dependencies - compiled floodlight(master) in parent dir. 
+    ant  # build
+    ant run   #runs floodlight with mycontroller module
+    ant debug # run in debug mode, hardcode socket address for jdb is 6767
+2. Infrastructure:
+  - Idea is to maintain floodlight as a submodule while controllers are maintained outside
+    floodlight repo. This way floodlight stays clean while we can much around as much
+    under homeworks.
+  - At compile time classpath is set to floodlight.jar.
+  - For packaging floodlight.jar is packaged with floodlight-cs646.jar.
+  - Important files: hw1/src/main/resources/* are copied for corresponding path under floodlight with MyController information added to properties and modules.

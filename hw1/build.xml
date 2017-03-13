@@ -1,0 +1,66 @@
+<project name="floodlight-cs446" default="pkg">
+
+  <property name="source" value="src/main/java"/>
+  <property name="resources" value="src/main/resources"/>
+  <property name="target" value="target"/>
+  <property name="build" value="${target}/bin"/>
+  <property name="main-class" value="net.floodlightcontroller.core.Main"/>
+  <property name="floodlight-home" value="../floodlight"/>
+  <property name="floodlight-properties" value="config/myfloodlight.properties"/>
+  <property name="floodlight-jar" value="${floodlight-home}/target/floodlight.jar"/>
+
+  <path id="compile.classpath">
+    <pathelement location="${floodlight-jar}"/>
+  </path>
+
+  <target name="init">
+    <mkdir dir="${target}"/>
+    <mkdir dir="${build}"/>
+  </target>
+
+  <target name="compile" depends="init">
+    <echo message = "Compiling Source.."/> 
+    <javac srcdir="${source}" destdir="${build}" includeantruntime="false" debug="on">
+      <classpath refid="compile.classpath"/>
+    </javac>
+    <copy todir="${build}">
+      <fileset dir="${resources}" />
+    </copy>
+  </target>
+
+  <target name="pkg" depends="compile" description="generate package">
+    <echo message = "generating package"/> 
+    <jar jarfile="${target}/${ant.project.name}.jar" filesetmanifest="mergewithoutmain">
+      <manifest>
+        <attribute name="Class-Path" value="."/>
+      </manifest>
+      <fileset dir="${build}"/>
+      <fileset dir="${resources}"/>
+    </jar>
+  </target>
+
+  <target name="run" depends="pkg" description="run floodlight with cs646-mycontroller">
+    <echo message = "running floodlight with MyController"/> 
+    <java fork="true" classname="${main-class}">
+      <classpath>
+        <path location="${floodlight-jar}"/>
+        <path location="${target}/${ant.project.name}.jar"/>
+      </classpath>
+    </java>
+  </target>
+
+  <target name="debug" depends="pkg" description="run floodlight with cs646-mycontroller in debug mode">
+    <echo message = "running in debug mode, do 'jdb -attach 6767'"/> 
+    <java fork="true" classname="${main-class}">
+      <classpath>
+        <path location="${floodlight-jar}"/>
+        <path location="${target}/${ant.project.name}.jar"/>
+      </classpath>
+      <jvmarg value="-agentlib:jdwp=transport=dt_socket,server=y,address=6767"/>
+    </java>
+  </target>
+
+  <target name="clean" description="clean up">
+    <delete dir="${target}"/>
+  </target>
+</project>
