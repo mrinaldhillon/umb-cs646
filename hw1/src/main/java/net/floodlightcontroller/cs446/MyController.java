@@ -60,6 +60,7 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
   protected OFMessageDamper messageDamper;
   private int OFMESSAGE_DAMPER_CAPACITY = 10000;
   private int OFMESSAGE_DAMPER_TIMEOUT = 250; // ms
+  private int prev_oport = -1;
   public static final int FORWARDING_APP_ID = 446;
   static {
     AppCookie.registerApp(FORWARDING_APP_ID, "forwarding");
@@ -129,7 +130,6 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
     // TODO Auto-generated method stub
     switch(msg.getType()){
       case PACKET_IN:
-
         Ethernet eth =
           IFloodlightProviderService.bcStore.get(cntx,
               IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
@@ -143,10 +143,13 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
                 pkt.getSourceAddress().toString());
             logger.info("ip port:{}",
                 Integer.toString( ((OFPacketIn)msg).getInPort().getPortNumber() ));
-
-
-
-            addMyFlow(sw);
+            if (sw.getId().toString().equals("00:00:00:00:00:00:00:01") 
+                && pkt.getSourceAddress().toString().equals("10.0.0.1")) {
+              addMyFlowSW1SrcH1(sw);
+            } else {
+              addMyFlow(sw);
+            }
+            // addMyFlow(sw);
             //return Command.STOP;
           }
         }
@@ -159,9 +162,7 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
 
   void addMyFlow(IOFSwitch sw){
     OFFlowMod.Builder fmb;
-
     OFFactory myFactory=sw.getOFFactory();
-
     fmb=myFactory.buildFlowAdd();
 
     Match myMatch = myFactory.buildMatch()
@@ -172,14 +173,52 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
       //.setExact(MatchField.TCP_DST, TransportPort.of(80))
       .build();
 
-
     ArrayList<OFAction> actionList = new ArrayList<OFAction>();
     OFActions actions = myFactory.actions();
-
 
     OFActionOutput output = actions.buildOutput()
       .setMaxLen(0xFFffFFff)
       .setPort(OFPort.of(2))
+      .build();
+    actionList.add(output);
+
+    fmb
+      .setIdleTimeout(5)
+      .setHardTimeout(5)
+      .setBufferId(OFBufferId.NO_BUFFER)
+      .setCookie(cookie)
+      .setPriority(1)
+      .setMatch(myMatch);
+
+    FlowModUtils.setActions(fmb, actionList, sw);
+    messageDamper.write(sw, fmb.build());
+  }
+
+  void addMyFlowSW1SrcH1(IOFSwitch sw){
+    OFFlowMod.Builder fmb;
+    OFFactory myFactory=sw.getOFFactory();
+    fmb=myFactory.buildFlowAdd();
+
+    Match myMatch = myFactory.buildMatch()
+      .setExact(MatchField.IN_PORT, OFPort.of(1))
+      .setExact(MatchField.ETH_TYPE, EthType.IPv4)
+      .setMasked(MatchField.IPV4_SRC, IPv4AddressWithMask.of("10.0.0.1/24"))
+      .setExact(MatchField.IP_PROTO, IpProtocol.TCP)
+      //.setExact(MatchField.TCP_DST, TransportPort.of(80))
+      .build();
+
+    ArrayList<OFAction> actionList = new ArrayList<OFAction>();
+    OFActions actions = myFactory.actions();
+
+    int oport = 2 == prev_oport ? 3 : 2;
+    System.out.println("Switch Id: " + sw.getId());
+    System.out.println("Previous OutPort: " + prev_oport);
+    System.out.println("Selected OutPort: " + oport);
+    prev_oport = oport;
+
+    OFActionOutput output = actions.buildOutput()
+      .setMaxLen(0xFFffFFff)
+      .setPort(OFPort.of(oport))
       .build();
     actionList.add(output);
 
