@@ -25,6 +25,7 @@ import org.projectfloodlight.openflow.protocol.instruction.OFInstructions;
 import org.projectfloodlight.openflow.protocol.match.Match;
 import org.projectfloodlight.openflow.protocol.match.MatchField;
 import org.projectfloodlight.openflow.types.EthType;
+import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.IPv4AddressWithMask;
 import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.MacAddress;
@@ -202,8 +203,11 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
     Match myMatch = myFactory.buildMatch()
       .setExact(MatchField.IN_PORT, OFPort.of(1))
       .setExact(MatchField.ETH_TYPE, EthType.IPv4)
-      .setMasked(MatchField.IPV4_SRC, IPv4AddressWithMask.of("10.0.0.1/24"))
-      .setExact(MatchField.IP_PROTO, IpProtocol.TCP)
+      .setExact(MatchField.IPV4_SRC, IPv4Address.of("10.0.0.1"))
+      .setExact(MatchField.IPV4_DST, IPv4Address.of("10.0.0.2"))
+      .setExact(MatchField.ETH_SRC, MacAddress.of("7e:57:ef:c6:ae:ce"))
+      .setExact(MatchField.ETH_DST, MacAddress.of("12:c2:b9:83:6e:eb"))
+    //  .setExact(MatchField.IP_PROTO, IpProtocol.TCP)
       //.setExact(MatchField.TCP_DST, TransportPort.of(80))
       .build();
 
