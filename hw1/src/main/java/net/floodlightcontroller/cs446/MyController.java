@@ -145,10 +145,11 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
             logger.info("ip port:{}",
                 Integer.toString( ((OFPacketIn)msg).getInPort().getPortNumber() ));
             if (sw.getId().toString().equals("00:00:00:00:00:00:00:01") 
-                && pkt.getSourceAddress().toString().equals("10.0.0.1")) {
-              addMyFlowSW1SrcH1(sw);
+                && pkt.getSourceAddress().toString().equals("10.0.0.1")
+                && 1 == ((OFPacketIn)msg).getInPort().getPortNumber()) {
+              addMyFlowForSwitch1PortTypeInPortNum1SrcH1(sw, (OFPacketIn)msg, cntx);
             } else {
-              addMyFlow(sw);
+              // addMyFlow(sw);
             }
             // addMyFlow(sw);
             //return Command.STOP;
@@ -195,29 +196,41 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
     messageDamper.write(sw, fmb.build());
   }
 
-  void addMyFlowSW1SrcH1(IOFSwitch sw){
-    OFFlowMod.Builder fmb;
-    OFFactory myFactory=sw.getOFFactory();
-    fmb=myFactory.buildFlowAdd();
+  // Based on LearningSwitch 
+  private Match createMatchFromPacket(IOFSwitch sw, FloodlightContext cntx, OFPort inPort, EthType ethType) {
+    Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+    MacAddress srcMac = eth.getSourceMACAddress();
+    MacAddress dstMac = eth.getDestinationMACAddress();
+    IPv4 pkt = (IPv4) eth.getPayload();
 
-    Match myMatch = myFactory.buildMatch()
-      .setExact(MatchField.IN_PORT, OFPort.of(1))
-      .setExact(MatchField.ETH_TYPE, EthType.IPv4)
-      .setExact(MatchField.IPV4_SRC, IPv4Address.of("10.0.0.1"))
-      .setExact(MatchField.IPV4_DST, IPv4Address.of("10.0.0.2"))
-      .setExact(MatchField.ETH_SRC, MacAddress.of("7e:57:ef:c6:ae:ce"))
-      .setExact(MatchField.ETH_DST, MacAddress.of("12:c2:b9:83:6e:eb"))
-    //  .setExact(MatchField.IP_PROTO, IpProtocol.TCP)
-      //.setExact(MatchField.TCP_DST, TransportPort.of(80))
-      .build();
+    Match.Builder mb = sw.getOFFactory().buildMatch();
+    mb.setExact(MatchField.IN_PORT, inPort)
+      .setExact(MatchField.ETH_TYPE, ethType)
+      .setExact(MatchField.ETH_SRC, srcMac)
+      .setExact(MatchField.ETH_DST, dstMac)
+      .setExact(MatchField.IPV4_SRC, IPv4Address.of(pkt.getSourceAddress().toString()))
+      .setExact(MatchField.IPV4_DST, IPv4Address.of(pkt.getDestinationAddress().toString()));
+    //    .setExact(MatchField.IP_PROTO, IpProtocol.TCP);
+    return mb.build();
+  }
 
+  void addMyFlowForSwitch1PortTypeInPortNum1SrcH1(IOFSwitch sw, OFPacketIn pi, 
+      FloodlightContext cntx) {
+
+    OFFactory myFactory = sw.getOFFactory();
+    OFFlowMod.Builder fmb = myFactory.buildFlowAdd();
+    OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : 
+        pi.getMatch().get(MatchField.IN_PORT));
+    Match m = createMatchFromPacket(sw, cntx, inPort, EthType.IPv4);
     ArrayList<OFAction> actionList = new ArrayList<OFAction>();
     OFActions actions = myFactory.actions();
 
+    // Chose alternate outport
     int oport = 2 == prev_oport ? 3 : 2;
     System.out.println("Switch Id: " + sw.getId());
     System.out.println("Previous OutPort: " + prev_oport);
     System.out.println("Selected OutPort: " + oport);
+    // Set previous port
     prev_oport = oport;
 
     OFActionOutput output = actions.buildOutput()
@@ -231,8 +244,9 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
       .setHardTimeout(5)
       .setBufferId(OFBufferId.NO_BUFFER)
       .setCookie(cookie)
-      .setPriority(1)
-      .setMatch(myMatch);
+      .setPriority(100)
+      .setOutPort(OFPort.of(oport))
+      .setMatch(m);
 
     FlowModUtils.setActions(fmb, actionList, sw);
     messageDamper.write(sw, fmb.build());
