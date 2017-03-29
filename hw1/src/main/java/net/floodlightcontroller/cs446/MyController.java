@@ -61,7 +61,7 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
   protected OFMessageDamper messageDamper;
   private int OFMESSAGE_DAMPER_CAPACITY = 10000;
   private int OFMESSAGE_DAMPER_TIMEOUT = 250; // ms
-  public static final int FORWARDING_APP_ID = 666;
+  public static final int FORWARDING_APP_ID = 446;
 
   private static final int MODFLOW_IDLE_TIMEOUT = 5;
   private static final int MODFLOW_HARD_TIMEOUT = 10;
