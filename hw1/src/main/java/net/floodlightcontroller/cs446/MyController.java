@@ -61,11 +61,11 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
   protected OFMessageDamper messageDamper;
   private int OFMESSAGE_DAMPER_CAPACITY = 10000;
   private int OFMESSAGE_DAMPER_TIMEOUT = 250; // ms
-  public static final int FORWARDING_APP_ID = 446;
+  public static final int FORWARDING_APP_ID = 666;
 
   private static final int MODFLOW_IDLE_TIMEOUT = 5;
   private static final int MODFLOW_HARD_TIMEOUT = 10;
-  private static final int MODFLOW_PRIORITY = 1000;
+  private static final int MODFLOW_PRIORITY = 666;
 
   private int last_used_oport = -1;
   private static final String SW1_ID = "00:00:00:00:00:00:00:01";
@@ -76,7 +76,7 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
   private static final String H1_IP = "10.0.0.1";
   private static final String H4_IP = "10.0.0.2";
   private static final String DEFAULT_FORWARDING_CONTROLLER_NAME = "forwarding";
-  private static final String MY_FORWARDING_CONTROLLER_NAME = "forwarding";
+  private static final String MY_FORWARDING_CONTROLLER_NAME = "myforwarding";
 
   static {
     AppCookie.registerApp(FORWARDING_APP_ID, MY_FORWARDING_CONTROLLER_NAME);
@@ -84,8 +84,7 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
   protected static final U64 cookie = AppCookie.makeCookie(FORWARDING_APP_ID, 0);
   @Override
   public String getName() {
-    // TODO Auto-generated method stub
-    return MyController.class.getSimpleName();
+    return MY_FORWARDING_CONTROLLER_NAME;
   }
 
   @Override
@@ -96,7 +95,7 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
 
   @Override
   public boolean isCallbackOrderingPostreq(OFType type, String name) {
-    // Force "forwarding" controller to be handle packets after MyController.
+    /* Force "forwarding" controller to be handle packets after MyController.*/
     if (name.equals(DEFAULT_FORWARDING_CONTROLLER_NAME)) return true;
     return false;
   }
@@ -178,63 +177,67 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
     messageDamper.write(sw, fmb.build());
   }
 
-  private void addMyFlow(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) throws UnsupportedOperationException {
-    int oport = -1;
-    OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 
-        ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
+  private void addMyFlow(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) 
+      throws UnsupportedOperationException {
+      int oport = -1;
+      OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 
+          ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
 
-    Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, 
-        IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-    MacAddress srcMac = eth.getSourceMACAddress();
-    MacAddress destMac = eth.getDestinationMACAddress();
-    IPv4 pkt = (IPv4) eth.getPayload();
-    IPv4Address srcIp = pkt.getSourceAddress();
-    IPv4Address destIp = pkt.getDestinationAddress();
-    String srcIpString = pkt.getSourceAddress().toString();
-    String destIpString = pkt.getDestinationAddress().toString();
+      Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, 
+          IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+      MacAddress srcMac = eth.getSourceMACAddress();
+      MacAddress destMac = eth.getDestinationMACAddress();
+      IPv4 pkt = (IPv4) eth.getPayload();
+      IPv4Address srcIp = pkt.getSourceAddress();
+      IPv4Address destIp = pkt.getDestinationAddress();
+      String srcIpString = pkt.getSourceAddress().toString();
+      String destIpString = pkt.getDestinationAddress().toString();
 
-    if (!srcIpString.equals(H1_IP) || !destIpString.equals(H4_IP)) {
-      throw new UnsupportedOperationException("MyController does not handle flow from"
-          + srcIpString + " to " + destIpString);
-    }
+      /* Dirty!!! Observed once stray h4-h1 response packet on sw1 in-port1, 
+       *  effected a reverse end-end to flow for response packets
+       *  */
+      if (!srcIpString.equals(H1_IP) || !destIpString.equals(H4_IP)) {
+        throw new UnsupportedOperationException("MyController does not handle flow from"
+            + srcIpString + " to " + destIpString);
+      }
 
-    String swId = sw.getId().toString();
-    switch(swId) {
-      case SW1_ID:
-               if (1 != inPort.getPortNumber()) {
-                 throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
-                     +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
-               }
-               oport = 2 == last_used_oport ? 3 : 2;
-               logger.info("Last Used OutPort:{}", Integer.toString(last_used_oport));         
-               // Set previous port
-               last_used_oport = oport;
-               break;
-      case SW2_ID:
-      case SW3_ID:
-               if (1 != inPort.getPortNumber()) {
-                 throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
-                     +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
-               }
-               oport = 2;
-               break;
-      case SW4_ID:
-               if (1 != inPort.getPortNumber() && 2 != inPort.getPortNumber()) {
-                 throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
-                     +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
-               }
-               oport = 3;
-               break;
-      default:
-               throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
-                   +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
-    }
+      String swId = sw.getId().toString();
+      switch(swId) {
+        case SW1_ID:
+          if (1 != inPort.getPortNumber()) {
+            throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
+                +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
+          }
+          oport = 2 == last_used_oport ? 3 : 2;
+          logger.info("Last Used OutPort:{}", Integer.toString(last_used_oport));         
+          // Set previous port
+          last_used_oport = oport;
+          break;
+        case SW2_ID:
+        case SW3_ID:
+          if (1 != inPort.getPortNumber()) {
+            throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
+                +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
+          }
+          oport = 2;
+          break;
+        case SW4_ID:
+          if (1 != inPort.getPortNumber() && 2 != inPort.getPortNumber()) {
+            throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
+                +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
+          }
+          oport = 3;
+          break;
+        default:
+          throw new UnsupportedOperationException("MyController does not handle flow of Switch Id:" 
+              +  sw.getId().toString() + "InPort:" + inPort.getPortNumber());
+      }
 
-    logger.info("Switch Id:{}", swId);         
-    logger.info("InPort:{}, OutPort:{}", Integer.toString(inPort.getPortNumber()), Integer.toString(oport));
-    Match m = createMyMatchFromPacket(sw, inPort, EthType.IPv4, 
-        srcMac, destMac, srcIp, destIp);
-    writeMyFlowMod(sw, m, OFPort.of(oport));
+      logger.info("Switch Id:{}", swId);         
+      logger.info("InPort:{}, OutPort:{}", Integer.toString(inPort.getPortNumber()), Integer.toString(oport));
+      Match m = createMyMatchFromPacket(sw, inPort, EthType.IPv4, 
+          srcMac, destMac, srcIp, destIp);
+      writeMyFlowMod(sw, m, OFPort.of(oport));
   }
 
   @Override
@@ -274,8 +277,8 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
       //logger.info(e.getMessage());
       /* Exception is thrown by addMyFlow if the packet flow is not handle by MyController 
        * For ex. response from H4 to H1 will come here. 
-       * In such case only, should the forwarding controller be called other rules message rules are
-       * exclusively set by by MyController. */
+       * In such case only, should the forwarding controller be called, otherwise h1 to h4 packet message 
+       *  rules are exclusively set by by MyController. */
       cmd = Command.CONTINUE;
     } finally {
       return cmd;
