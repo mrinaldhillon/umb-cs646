@@ -75,9 +75,11 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
 
   private static final String H1_IP = "10.0.0.1";
   private static final String H4_IP = "10.0.0.2";
+  private static final String DEFAULT_FORWARDING_CONTROLLER_NAME = "forwarding";
+  private static final String MY_FORWARDING_CONTROLLER_NAME = "forwarding";
 
   static {
-    AppCookie.registerApp(FORWARDING_APP_ID, "forwarding");
+    AppCookie.registerApp(FORWARDING_APP_ID, MY_FORWARDING_CONTROLLER_NAME);
   }
   protected static final U64 cookie = AppCookie.makeCookie(FORWARDING_APP_ID, 0);
   @Override
@@ -94,8 +96,9 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
 
   @Override
   public boolean isCallbackOrderingPostreq(OFType type, String name) {
-    // TODO Auto-generated method stub
-    return true;
+    // Force "forwarding" controller to be handle packets after MyController.
+    if (name.equals(DEFAULT_FORWARDING_CONTROLLER_NAME)) return true;
+    return false;
   }
 
   @Override
@@ -175,7 +178,7 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
     messageDamper.write(sw, fmb.build());
   }
 
-  private void handlePacketInFlowForSw1ToSw4(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
+  private void addMyFlow(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) throws UnsupportedOperationException {
     int oport = -1;
     OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 
         ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
@@ -239,12 +242,12 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
       FloodlightContext cntx) {
     Command cmd = Command.CONTINUE;
     try {
-      // TODO Auto-generated method stub
       switch(msg.getType()){
         case PACKET_IN:
           Ethernet eth =
             IFloodlightProviderService.bcStore.get(cntx,
                 IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+
           MacAddress srcMac = eth.getSourceMACAddress();
           if(eth.getEtherType()==EthType.IPv4){
             IPv4 pkt = (IPv4) eth.getPayload();
@@ -254,8 +257,12 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
                   pkt.getSourceAddress().toString());
               logger.info("ip port:{}",
                   Integer.toString( ((OFPacketIn)msg).getInPort().getPortNumber() ));
-              handlePacketInFlowForSw1ToSw4(sw, (OFPacketIn)msg, cntx);  
-              // addMyFlow(sw);
+
+              addMyFlow(sw, (OFPacketIn)msg, cntx);
+              /* Stop this message from being handled by other PACKET_IN handlers i.e. Forwarding Controller.
+               * This combined with making sure that "forwarding" Controller is called after MyController 
+               *    (see isCallbackOrderingPostreq) completely disables Forwarding Controller for this message.
+               *    */  
               cmd = Command.STOP;
             }
           }
@@ -265,42 +272,13 @@ public class MyController implements IOFMessageListener, IFloodlightModule {
       }
     } catch (UnsupportedOperationException e) {
       //logger.info(e.getMessage());
+      /* Exception is thrown by addMyFlow if the packet flow is not handle by MyController 
+       * For ex. response from H4 to H1 will come here. 
+       * In such case only, should the forwarding controller be called other rules message rules are
+       * exclusively set by by MyController. */
+      cmd = Command.CONTINUE;
     } finally {
       return cmd;
     }
-  }
-
-  private void addMyFlow(IOFSwitch sw){
-    OFFlowMod.Builder fmb;
-    OFFactory myFactory=sw.getOFFactory();
-    fmb=myFactory.buildFlowAdd();
-
-    Match myMatch = myFactory.buildMatch()
-      .setExact(MatchField.IN_PORT, OFPort.of(1))
-      .setExact(MatchField.ETH_TYPE, EthType.IPv4)
-      .setMasked(MatchField.IPV4_SRC, IPv4AddressWithMask.of("10.0.0.1/24"))
-      .setExact(MatchField.IP_PROTO, IpProtocol.TCP)
-      //.setExact(MatchField.TCP_DST, TransportPort.of(80))
-      .build();
-
-    ArrayList<OFAction> actionList = new ArrayList<OFAction>();
-    OFActions actions = myFactory.actions();
-
-    OFActionOutput output = actions.buildOutput()
-      .setMaxLen(0xFFffFFff)
-      .setPort(OFPort.of(2))
-      .build();
-    actionList.add(output);
-
-    fmb
-      .setIdleTimeout(5)
-      .setHardTimeout(5)
-      .setBufferId(OFBufferId.NO_BUFFER)
-      .setCookie(cookie)
-      .setPriority(1)
-      .setMatch(myMatch);
-
-    FlowModUtils.setActions(fmb, actionList, sw);
-    messageDamper.write(sw, fmb.build());
   }
 }
