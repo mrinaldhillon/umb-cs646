@@ -1,0 +1,2 @@
+let g:syntastic_java_javac_classpath = 'floodlight/target/floodlight.jar'
+let g:syntastic_quiet_messages = {"level": "warnings"}
