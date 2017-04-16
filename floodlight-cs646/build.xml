@@ -5,7 +5,7 @@
   <property name="target" value="target"/>
   <property name="build" value="${target}/bin"/>
   <property name="main-class" value="net.floodlightcontroller.core.Main"/>
-  <property name="floodlight-home" value="../floodlight"/>
+  <property name="floodlight-home" value="lib/floodlight"/>
   <property name="floodlight-properties" value="config/myfloodlight.properties"/>
   <property name="floodlight-jar" value="${floodlight-home}/target/floodlight.jar"/>
 
